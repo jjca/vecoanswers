@@ -1,0 +1,36 @@
+name: vecostack
+
+services:
+    db:
+      container_name: sqlserver_db
+      image: mcr.microsoft.com/mssql/server:2019-latest
+      environment:
+        - ACCEPT_EULA = Y
+      ports:
+        - 1433:1433
+      restart: always
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.2
+
+    frontend:
+
+      container_name: frontend
+      image: imagenDelFrontend  
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.3
+
+    backend:
+      container_name: api
+      image: imagenDelBackend
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.4
+
+networks:
+  veco-network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.41.0/24
