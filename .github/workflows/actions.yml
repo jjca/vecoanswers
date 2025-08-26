@@ -14,6 +14,10 @@ jobs:
     - name: Set up Docker Compose
       uses: docker/setup-compose-action@v1
     - name: Put secrets
-      run: echo "${{ secrets.DBPASSWORD }}" >> db_password && echo "${{ secrets.APPSETTINGS }}" >> appsettings.json && echo "${{ secrets.ENV_BACK }}" >> .env_backend
+      env:
+        DBPASSWORD: ${{ secrets.DBPASSWORD }}
+        APPSETTINGS: ${{ secrets.APPSETTINGS }}
+        ENV_BACK: ${{ secrets.ENV_BACK }}
+      run: echo "$DBPASSWORD" >> db_password && echo "$APPSETTINGS" >> appsettings.json && echo "$ENV_BACK" >> .env_backend
     - name: Run docker compose
       run: docker compose up -f docker-compose.prod.yaml --pull
