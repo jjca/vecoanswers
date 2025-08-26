@@ -20,4 +20,4 @@ jobs:
         ENV_BACK: ${{ secrets.ENV_BACK }}
       run: echo "$DBPASSWORD" >> db_password && echo "$APPSETTINGS" >> appsettings.json && echo "$ENV_BACK" >> .env_backend
     - name: Run docker compose
-      run: docker compose up -f docker-compose.prod.yaml --pull
+      run: docker compose -f docker-compose.prod.yaml up --pull always
