@@ -13,6 +13,8 @@ jobs:
     steps:
     - name: Set up Docker Compose
       uses: docker/setup-compose-action@v1
+    - name: checkout
+      uses: actions/checkout@v4
     - name: Put secrets
       env:
         DBPASSWORD: ${{ secrets.DBPASSWORD }}
