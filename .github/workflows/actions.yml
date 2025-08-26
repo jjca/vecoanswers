@@ -26,5 +26,7 @@ jobs:
         APPSETTINGS: ${{ secrets.APPSETTINGS }}
         ENV_BACK: ${{ secrets.ENV_BACK }}
       run: echo "$DBPASSWORD" >> db_password && echo "$APPSETTINGS" >> appsettings.json && echo "$ENV_BACK" >> .env_backend
+    - name: create folders for sqlserver
+      run: mkdir -p sqlserver/data && chown -R 10001 sqlserver
     - name: Run docker compose
       run: docker compose -f docker-compose.prod.yaml up --pull always
