@@ -55,24 +55,66 @@ Cadena donde se incluye el hostname y puerto del Servidor de SQL Server. Ej: `10
 
 ### MSSQL_DATABASE
 
-Nombre de la base de datos sobre la cual trabajar
+Nombre de la base de datos sobre la cual trabajará el backend.
+
+### ASPNETCORE_ENVIRONMENT
+
+Si se establece en `Development` activa el Swagger del API. Si se deja en blanco, se considera el ambiente de producción.
 
 ## Secretos
 
 ### appsettings.json
 
-Incluye la configuración de conexión hacia la base de datos.
+Incluye la configuración de conexión hacia la base de datos. Es usado únicamente por el contenedor de Backend
 
 ### db_password
+
+Archivo que contiene únicamente la contraseña del usuario `sa` del SQL Server. Es usada por el contendeor de SQLServer.
 
 ## Detalles técnicos
 
 - Se observó que era requerido crear una nueva migración. Debido a esto, se consideró incluir la variable `MIGRATE` en el archivo de ambiente, para indicar al contenedor del backend si se requiere o no ejecutar las migraciones. Nota: ya para este repositorio se cuenta con la migración faltante.
-- El manejo del Healthcheck del backend se hace aprovechando el endpoint `/WeatherForecast`. Esto no significa que el servicio funcione correctamente.
-- El manejo del Healthcheck del frontend es consultando directamente al puerto `8080`. Si la información fue cargada a la DB, este cargará correctamente la web y el contenedor estará `healthy`.
 - De acuerdo al momento donde se ejecuten las migraciones de la DB, es posible mejorar el tamaño de la imagen del Backend, aprovechando una implementación multicapa muy similar a la del frontend. No se hizo esto debido a que para poder usar `dotnet ef` se requiere el SDK .NET 8 instalado en la imagen.
 - Se utilizó un equipo con Ubuntu 24.04 LTS para todas las tareas.
 - Se modificó el endpoint de consulta del backend en el frontend de: `https://localhost:7128/Contenedor` por `http://localhost:5198/Contenedor`. Para un entorno productivo se debe usar el https, pero este requiere un certificado SSL.
 - Los logs pueden ser consultados con el comando `docker logs -ft --details CONTENEDOR` sustituyendo `CONTENEDOR` por `api`, `frontend` o `sqlserver` de acuerdo al caso.
 - Para configurar la persistencia de los datos en el contenedor de SQL Server, debido a que usa un usuario que no es `root` se debe hacer el cambio de propietario al UID `10001` al directorio a almacenar la informacón. En este caso, para el entorno productivo se considerarían mejores prácticas en permisos, usar otro usuario o ejecutar directamente una instancia de SQLServer sin contenedores.
-- 
+
+### Healthchecks
+
+#### Backend
+
+El manejo del Healthcheck del backend se hace al endpoint `/Contenedor`, el cual, hace la consulta a la DB para validar que existan los dato.
+
+Se definió directamente en el Dockerfile, con las siguientes características:
+
+- Interval: cada 30 segundos
+- Timeout: 10 segundos
+- Start-period: 10 segundos
+- Comando: `CMD curl -f http://localhost:5198/Contenedor  || exit 1`
+
+
+#### Frontend
+
+El manejo del Healthcheck del frontend es consultando directamente al puerto `8080`. Si la información fue cargada a la DB, este cargará correctamente la web con la tabla de los contenedores y el contenedor estará `healthy`. 
+
+No se usó otro endpoint ya que se requiere qu funcione el endpoint principal, de lo contrario el stack está fallido.
+
+Se definió directamente en el Dockerfile, con las siguientes características:
+
+- Interval: cada 5 segundos
+- Timeout: 10 segundos
+- Start-period: 10 segundos
+- Comando: `CMD curl -f http://localhost:8080/ || exit 1`
+
+#### SQLServer
+
+El healthcheck se definió a nivel del `docker-compose.yaml`. Se definió para hacer un query a la DB con `SELECT 1`:
+
+- Interval: cada 15 segundos
+- Timeout: 10 segundos
+- Start-period: 45 segundos
+- Start-interval: 30 segundos
+- Comando: ```"CMD-SHELL","/opt/mssql-tools18/bin/sqlcmd -U sa -No -S localhost -P `cat $$MSSQL_SA_PASSWORD_FILE` -Q 'SELECT 1'"```
+
+La variable de ambiente `MSSQL_SA_PASSWORD_FILE` especifica la ruta del secret donde se almacena la contraseña del usuario `sa`.
