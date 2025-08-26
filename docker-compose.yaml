@@ -2,8 +2,8 @@ name: vecostack
 
 services:
     db:
-      container_name: sqlserver_db
-      image: mcr.microsoft.com/mssql/server:2019-latest
+      container_name: sqlserver
+      image: mcr.microsoft.com/mssql/server:2022-latest
       environment:
         - ACCEPT_EULA = Y
       ports:
@@ -12,21 +12,42 @@ services:
       networks:
         veco-network:
            ipv4_address: 192.168.41.2
+      volumes:
+        - ./sqlserver/data:/var/opt/mssql/data:rw
+      healthcheck:
+        test: ["CMD-SHELL","/opt/mssql-tools18/bin/sqlcmd -U sa -No -S localhost -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1'"]
+        interval: 15s
+        start_period: 45s
+        start_interval: 30s
+        retries: 3
 
     frontend:
-
       container_name: frontend
-      image: imagenDelFrontend  
+      build:
+        context: ../Frontend-Contenedores
+      ports:
+        - 8080:8080
       networks:
         veco-network:
            ipv4_address: 192.168.41.3
+      depends_on:
+        backend:
+          condition: service_healthy
+          restart: false
 
     backend:
       container_name: api
-      image: imagenDelBackend
+      build:
+        context: ../APIContainer
+      ports:
+        - 5198:5198
       networks:
         veco-network:
            ipv4_address: 192.168.41.4
+      depends_on:
+        db:
+          condition: service_healthy
+          restart: false
 
 networks:
   veco-network:
