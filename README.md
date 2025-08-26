@@ -140,3 +140,27 @@ El healthcheck se definió a nivel del `docker-compose.yaml`. Se definió para h
 - Comando: ```"CMD-SHELL","/opt/mssql-tools18/bin/sqlcmd -U sa -No -S localhost -P `cat $$MSSQL_SA_PASSWORD_FILE` -Q 'SELECT 1'"```
 
 La variable de ambiente `MSSQL_SA_PASSWORD_FILE` especifica la ruta del secret donde se almacena la contraseña del usuario `sa`.
+
+
+### CI/CD
+
+Se configuró el build automático para los repositorios de `APIContainer` y `Frontend-Contenedores` cuando se realiza un push hacia las ramas `main` o `master` sobre cada repositorio.
+
+Para el caso del despliegue de los contenedores en conjunto mediante `docker-compose.yaml`, se creó un repositorio sobre el cual se intentó hacer las tareas de despliegue, sin éxito.
+
+La idea del mismo es:
+- Descargar las imágenes del Docker Hub del front y backend
+- Descargar SQLServer
+- Arrancar los servicios usando los parámetros de configuración mediante variables de ambiente y secretos.
+
+## Tareas no realizadas
+- Rollback simulado
+- Notificación
+- Pruebas de integración sobre el runner
+- Despliegue de distintos ambientes.
+
+
+## Propuestas
+
+- Notificación: aprovechar los runners y hacer un envío de correo directamente desde alguno, o mediante algún API enviar un mensaje a Telegram, Slack, u otro servicio como Gotify.
+- Pruebas de integridad: verificar conexiones como se hacen con los healthcheck
