@@ -50,8 +50,6 @@ services:
           condition: service_healthy
           restart: false
       env_file: ".env_backend"
-      environment: 
-        MSSQL_SA_PASSWORD: /run/secrets/dbpwd
       secrets:
         - source: appsettings
           target: /src/appsettings.json
