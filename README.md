@@ -24,7 +24,8 @@ Para ejecutar el stack, se deben cumplir los siguientes prerrequisitos:
 5. Crear el archivo `db_password` y escribir dentro contraseña deseada para el usuario `sa` de la base de datos. Este archivo únicamente contiene la contraseña en texto plano.
 6. Crear el directorio para el almacenamiento de los datos del SQLServer. Para este proyecto está de forma predeterminada en: `sqlserver/data` relativo a donde fue clonado el repositorio.
 7. Asignar los permisos al UID 10001 correspondiente con el usuario `mssql` dentro del contenedor a la carpeta `sqlserver/data`: `chown -R 10001 sqlserver`.
-6. Ejecutar `docker compose up`.
+8. Configurar el archivo `appsettings.json` en el directorio donde se encuentra el archivo `docker-compose.yaml` con los parámetros de conexión correspondientes.
+9. Ejecutar `docker compose up`.
 
 ## Workflow
 
@@ -65,7 +66,28 @@ Si se establece en `Development` activa el Swagger del API. Si se deja en blanco
 
 ### appsettings.json
 
-Incluye la configuración de conexión hacia la base de datos. Es usado únicamente por el contenedor de Backend
+Incluye la configuración de conexión hacia la base de datos. Es usado únicamente por el contenedor de Backend y se requiere configurar manualmente. El archivo es proveído así:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=$MSSQLHOSTPORT;Trusted_Connection=False;user id=$MSSQL_USER;password=$MSSQL_SA_PASSWORD;Database=$MSSQL_DATABASE;TrustServerCertificate=True;"
+  }
+}
+```
+
+Únicamente debe actualizarse el parámetro `DefaultConnection`. Por ejemplo:
+
+```json
+"DefaultConnection": "Server=127.0.0.1,1433;Trusted_Connection=False;user id=sa;password=Contraseña12345;Database=db_base;TrustServerCertificate=True;"
+```
 
 ### db_password
 
