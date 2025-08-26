@@ -1,0 +1,69 @@
+name: vecostack
+
+services:
+    db:
+      container_name: sqlserver
+      image: mcr.microsoft.com/mssql/server:2022-latest
+      environment:
+        ACCEPT_EULA: Y
+        MSSQL_SA_PASSWORD_FILE: /run/secrets/dbpwd
+      restart: always
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.2
+      volumes:
+        - ./sqlserver/data:/var/opt/mssql/data:rw
+      healthcheck:
+        test: ["CMD-SHELL","/opt/mssql-tools18/bin/sqlcmd -U sa -No -S localhost -P `cat $$MSSQL_SA_PASSWORD_FILE` -Q 'SELECT 1'"]
+        interval: 15s
+        start_period: 45s
+        start_interval: 30s
+        retries: 3
+      secrets:
+        - dbpwd
+
+    frontend:
+      container_name: frontend
+      image: jjca/blueteam:vecofront
+      ports:
+        - 8080:8080
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.3
+      depends_on:
+        backend:
+          condition: service_healthy
+          restart: false
+
+    backend:
+      container_name: api
+      image: jjca/blueteam:vecoapi
+      ports:
+        - 5198:5198
+      networks:
+        veco-network:
+           ipv4_address: 192.168.41.4
+      depends_on:
+        db:
+          condition: service_healthy
+          restart: false
+      env_file: ".env_backend"
+      secrets:
+        - source: appsettings
+          target: /src/appsettings.json
+        - source: dbpwd
+        
+
+networks:
+  veco-network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.41.0/24
+
+
+secrets:
+  dbpwd:
+    file: ./db_password
+  appsettings:
+    file: ./appsettings.json
