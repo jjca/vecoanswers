@@ -7,6 +7,7 @@ Se despliega usando la imagen definida en el Dockerfile dentro del repositorio d
 ## Frontend
 
 Se despliega usando la imagen definida en el Dockerfile dentro del repositorio de Frontend-Contenedores. La imagen base es `docker pull mcr.microsoft.com/dotnet/sdk:8.0-alpine`
+
 ## Base de datos
 
 Se despliega usando la imagen predeterminada de SQL Server 2022 para Linux proveída por Microsoft. El almacenamiento predefinido de la base de datos es en el directorio `sqlserver` donde fue clonado este repositorio.
@@ -29,17 +30,52 @@ Para ejecutar el stack, se deben cumplir los siguientes prerrequisitos:
 
 ## Workflow
 
-El workflow de GitHub Actions se implementó 
+### Servicios
+
+El workflow de GitHub Actions se implementó para el build de las imágenes del frontend y el backend, usando como base el template de Actions para imágenes .NET, y se añadieron las tareas necesarias para subir al Docker Hub. Es funcional, y se requiere accesos al repositorio para descargar las imágenes cargadas.
+
+Su funcionamiento es sencillo, ak momento de hacerse un push hacia la rama `master` o `main`, arranca el workflow. Lo primero, descargar el repositorio sobre el último commit, instalar .NET y resolver las dependencias del proyecto. Posteriormente, construir el proyecto y ejecutar pruebas, todo esto sin contenedores.
+
+Luego de que se realizan las pruebas correctamente, autenticarse contra Docker Hub, construir la imagen y pushearla al repositorio.
+
+Este flujo aplica para el API y el Frontend.
+
+Las variables de ambiente requeridas se configuraron como secrets directamente en GitHub.
+
+### Stack completo
+
+Para el despliegue de todo, no se obtuvo un funcionamiento al 100%. El objetivo, es ejecutar mediante el `docker-compose.yaml` configurado un action el cual despliegue la infraestructura. Para ello, puede tomarse un nuevo repositorio o usar el del API.
+
+Si se considera el primer caso, es requerido algún trigger para el despliegue, cuestión que puede resultar innecesaria para un repositorio donde únicamente hay un `docker-compose.yaml` y las instrucciones de despliegue.
+
+La segunda opción, si bien va de la mano en el despliegue, no se hace ningún task si hay actualizaciones sobre el repositorio del frontend. Para hacer del deploy, se configuraría un nuevo `job`, el cual, usa el atributo _needs:build_ para garantizar que se ejecutaría luego de un build. El resto del proceso, sería algo así:
+
+```yaml
+docker-run:
+    needs: [build]
+    runs-on: self-hosted
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run Docker-Compose pull
+        run: docker compose -f docker-compose.yaml pull always
+      - name: Run Docker-Compose
+        run: docker compose -f docker-compose.yaml up -d --force-recreate
+```
 
 ## Variables de ambiente
 
 Valores predeterminados de las variables de ambiente:
 
-```
+```txt
 - MIGRATE=false
 - MSSQL_USER=sa
 - MSSQL_HOSTPORT=sqlserver,1433
 - MSSQL_DATABASE=Veconinter
+- ASPNETCORE_ENVIRONMENT=Development
 ```
 
 ### MIGRATE
@@ -96,7 +132,8 @@ Archivo que contiene únicamente la contraseña del usuario `sa` del SQL Server.
 ## Detalles técnicos
 
 - Se observó que era requerido crear una nueva migración. Debido a esto, se consideró incluir la variable `MIGRATE` en el archivo de ambiente, para indicar al contenedor del backend si se requiere o no ejecutar las migraciones. Nota: ya para este repositorio se cuenta con la migración faltante.
-- De acuerdo al momento donde se ejecuten las migraciones de la DB, es posible mejorar el tamaño de la imagen del Backend, aprovechando una implementación multicapa muy similar a la del frontend. No se hizo esto debido a que para poder usar `dotnet ef` se requiere el SDK .NET 8 instalado en la imagen.
+- De acuerdo al momento donde se ejecuten las migraciones de la DB, es posible mejorar el tamaño de la imagen del Backend, aprovechando una implementación multicapa muy similar a la del frontend. No se hizo esto debido a que para poder usar `dotnet ef` se requiere el SDK .NET 8 instalado en la imagen, impidiendo optimizar el tamaño de la imagen.
+- Para reducir el tamaño de las imágenes se usaron variantes sobre Alpine.
 - Se utilizó un equipo con Ubuntu 24.04 LTS para todas las tareas.
 - Se modificó el endpoint de consulta del backend en el frontend de: `https://localhost:7128/Contenedor` por `http://localhost:5198/Contenedor`. Para un entorno productivo se debe usar el https, pero este requiere un certificado SSL.
 - Los logs pueden ser consultados con el comando `docker logs -ft --details CONTENEDOR` sustituyendo `CONTENEDOR` por `api`, `frontend` o `sqlserver` de acuerdo al caso.
@@ -115,10 +152,9 @@ Se definió directamente en el Dockerfile, con las siguientes características:
 - Start-period: 10 segundos
 - Comando: `CMD curl -f http://localhost:5198/Contenedor  || exit 1`
 
+#### Frontend 
 
-#### Frontend
-
-El manejo del Healthcheck del frontend es consultando directamente al puerto `8080`. Si la información fue cargada a la DB, este cargará correctamente la web con la tabla de los contenedores y el contenedor estará `healthy`. 
+El manejo del Healthcheck del frontend es consultando directamente al puerto `8080`. Si la información fue cargada a la DB, este cargará correctamente la web con la tabla de los contenedores y el contenedor estará `healthy`.
 
 No se usó otro endpoint ya que se requiere qu funcione el endpoint principal, de lo contrario el stack está fallido.
 
@@ -131,7 +167,7 @@ Se definió directamente en el Dockerfile, con las siguientes características:
 
 #### SQLServer
 
-El healthcheck se definió a nivel del `docker-compose.yaml`. Se definió para hacer un query a la DB con `SELECT 1`:
+El healthcheck se definió a nivel del `docker-compose.yaml`, hace un query a la DB con `SELECT 1`:
 
 - Interval: cada 15 segundos
 - Timeout: 10 segundos
@@ -141,7 +177,6 @@ El healthcheck se definió a nivel del `docker-compose.yaml`. Se definió para h
 
 La variable de ambiente `MSSQL_SA_PASSWORD_FILE` especifica la ruta del secret donde se almacena la contraseña del usuario `sa`.
 
-
 ### CI/CD
 
 Se configuró el build automático para los repositorios de `APIContainer` y `Frontend-Contenedores` cuando se realiza un push hacia las ramas `main` o `master` sobre cada repositorio.
@@ -149,18 +184,21 @@ Se configuró el build automático para los repositorios de `APIContainer` y `Fr
 Para el caso del despliegue de los contenedores en conjunto mediante `docker-compose.yaml`, se creó un repositorio sobre el cual se intentó hacer las tareas de despliegue, sin éxito.
 
 La idea del mismo es:
+
 - Descargar las imágenes del Docker Hub del front y backend
 - Descargar SQLServer
 - Arrancar los servicios usando los parámetros de configuración mediante variables de ambiente y secretos.
 
 ## Tareas no realizadas
+
 - Rollback simulado
 - Notificación
 - Pruebas de integración sobre el runner
 - Despliegue de distintos ambientes.
 
-
 ## Propuestas
 
 - Notificación: aprovechar los runners y hacer un envío de correo directamente desde alguno, o mediante algún API enviar un mensaje a Telegram, Slack, u otro servicio como Gotify.
-- Pruebas de integridad: verificar conexiones como se hacen con los healthcheck
+- Pruebas de integración: verificar conexiones como se hacen con los healthcheck, así como ejecutar las pruebas de los servicios y comportamientos sobre la DB. Posteriormente, eliminar los contenedores.
+- Rollback: crear respaldos de la base de datos y guardar el hash de las imágenes de los contenedores desplegados, para en caso de requerirse el rollback usarlo y luego restaurar la DB.
+- Despliegue en distintos ambientes: probar con la definición de ambientes mediante GitHub, usar variables de ambiente para los ajustes a nivel de contenedor y también distintos docker-compose donde se tengan ajustes propios de cada ambiente.
